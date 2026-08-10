@@ -54,7 +54,20 @@ impl Port {
 
     pub fn handle_client(mut client: TcpStream) -> io::Result<()> {
         let mut buffer = Vec::new();
-        client.read_to_end(&mut buffer)?;
+        loop {
+            let mut chunk = [0u8; 1024];
+            let n = client.read(&mut chunk)?;
+
+            if n == 0 {
+                break;
+            }
+
+            buffer.extend_from_slice(&chunk[..n]);
+
+            if buffer.windows(4).any(|window| window == b"\r\n\r\n") {
+                break;
+            }
+        }
 
         let request =
             String::from_utf8(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
