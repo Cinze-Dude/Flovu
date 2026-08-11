@@ -1,14 +1,34 @@
 use std::fmt;
-use std::fmt::write;
 use std::io;
 
-use crate::parser::Method;
+use crate::request::Method;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum HttpStatus {
+    BadRequest,
+    Unauthorized,
+    Forbidden,
+    NotFound,
+    MethodNotAllowed,
+    RequestTimeout,
+    Conflict,
+    ContentTooLarge,
+    URITooLong,
+    UnsupportedMediaType,
+    Teapot,
+    TooManyRequests,
+    InternalServerError,
+    NotImplemented,
+    BadGateway,
+    ServiceUnavailable,
+    GatewayTimeout,
+}
 
 #[derive(Debug)]
 pub enum HttpError {
     Io(io::Error),
 
-    Http(u16),
+    Http(HttpStatus),
 
     InvalidRequestLine,
     InvalidMethod(Method),
@@ -16,12 +36,37 @@ pub enum HttpError {
     InvalidQuery(String),
     InvalidVersion(String),
 
-    InvalidHeader(String),
+    InvalidHeader(String, String),
 
     InvalidContentLength,
     MissingContentLength,
     MissingHeaderTerminator,
     InvalidBody,
+}
+
+impl HttpStatus {
+    pub fn code(&self) -> u16 {
+        match self {
+            Self::BadRequest => 400,
+            Self::Unauthorized => 401,
+            Self::Forbidden => 403,
+            Self::NotFound => 404,
+            Self::MethodNotAllowed => 405,
+            Self::RequestTimeout => 408,
+            Self::Conflict => 409,
+            Self::ContentTooLarge => 413,
+            Self::URITooLong => 414,
+            Self::UnsupportedMediaType => 415,
+            Self::Teapot => 418,
+            Self::TooManyRequests => 429,
+
+            Self::InternalServerError => 500,
+            Self::NotImplemented => 501,
+            Self::BadGateway => 502,
+            Self::ServiceUnavailable => 503,
+            Self::GatewayTimeout => 504,
+        }
+    }
 }
 
 impl From<io::Error> for HttpError {
@@ -30,8 +75,8 @@ impl From<io::Error> for HttpError {
     }
 }
 
-impl From<u16> for HttpError {
-    fn from(status: u16) -> Self {
+impl From<HttpStatus> for HttpError {
+    fn from(status: HttpStatus) -> Self {
         Self::Http(status)
     }
 }
@@ -42,30 +87,28 @@ impl fmt::Display for HttpError {
             Self::Io(err) => write!(f, "I/O error: {}", err),
 
             Self::Http(status) => {
-                let reason = match *status {
-                    400 => "Bad Request",
-                    401 => "Unauthorized",
-                    403 => "Forbidden",
-                    404 => "Not Found",
-                    405 => "Method Not Allowed",
-                    408 => "Request Timeout",
-                    409 => "Conflict",
-                    413 => "Content Too Large",
-                    414 => "URI Too Long",
-                    415 => "Unsupported Media Type",
-                    418 => "I'm a teapot",
-                    429 => "Too Many Requests",
+                let (code, reason) = match status {
+                    HttpStatus::BadRequest => (400, "Bad Request"),
+                    HttpStatus::Unauthorized => (401, "Unauthorized"),
+                    HttpStatus::Forbidden => (403, "Forbidden"),
+                    HttpStatus::NotFound => (404, "Not Found"),
+                    HttpStatus::MethodNotAllowed => (405, "Method Not Allowed"),
+                    HttpStatus::RequestTimeout => (408, "Request Timeout"),
+                    HttpStatus::Conflict => (409, "Conflict"),
+                    HttpStatus::ContentTooLarge => (413, "Content Too Large"),
+                    HttpStatus::URITooLong => (414, "URI Too Long"),
+                    HttpStatus::UnsupportedMediaType => (415, "Unsupported Media Type"),
+                    HttpStatus::Teapot => (418, "I'm a teapot"),
+                    HttpStatus::TooManyRequests => (429, "Too Many Requests"),
 
-                    500 => "Internal Server Error",
-                    501 => "Not Implemented",
-                    502 => "Bad Gateway",
-                    503 => "Service Unavailable",
-                    504 => "Gateway Timeout",
-
-                    _ => "Unknown HTTP Status",
+                    HttpStatus::InternalServerError => (500, "Internal Server Error"),
+                    HttpStatus::NotImplemented => (501, "Not Implemented"),
+                    HttpStatus::BadGateway => (502, "Bad Gateway"),
+                    HttpStatus::ServiceUnavailable => (503, "Service Unavailable"),
+                    HttpStatus::GatewayTimeout => (504, "Gateway Timeout"),
                 };
 
-                write!(f, "{} {}", status, reason)
+                write!(f, "{}: {}", reason, code)
             }
 
             Self::InvalidRequestLine => write!(f, "Invalid HTTP request line"),
@@ -80,7 +123,9 @@ impl fmt::Display for HttpError {
 
             Self::InvalidVersion(version) => write!(f, "Invalid HTTP version: {}", version),
 
-            Self::InvalidHeader(header) => write!(f, "Invalid HTTP header: {}", header),
+            Self::InvalidHeader(header, val) => {
+                write!(f, "Invalid HTTP header: \"{}: {}\"", header, val)
+            }
 
             Self::InvalidContentLength => write!(f, "Invalid Content-Length"),
 

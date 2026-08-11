@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use crate::parser;
+use crate::request;
 
 pub struct PortState {
     port: u16,
@@ -25,7 +25,7 @@ pub enum InitOption {
 pub struct VecInitOption(Vec<InitOption>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Packet {
+pub enum Packet {
     Raw,
 }
 
@@ -89,7 +89,7 @@ impl Port {
         let buffer = Vec::new();
         let request = Port::lex_request(&client, buffer)?;
         println!("{}", request);
-        println!("{:#?}", parser::parse_request(request));
+        println!("{:#?}", request::parse_request(request));
 
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
 
