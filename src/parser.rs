@@ -24,8 +24,8 @@ pub enum Method {
     Unknown(String),
 }
 
-fn parse_method(txt: String) -> Method {
-    match txt.as_str() {
+fn parse_method(txt: &str) -> Method {
+    match txt {
         "CONNECT" => Method::Connect,
         "DELETE" => Method::Delete,
         "GET" => Method::Get,
@@ -39,10 +39,10 @@ fn parse_method(txt: String) -> Method {
     }
 }
 
-fn parse_method_line(txt: String) -> (Method, String, Option<String>, String) {
+fn parse_method_line(txt: &str) -> (Method, String, Option<String>, String) {
     let mut parts = txt.split_whitespace();
 
-    let method = parse_method(parts.next().unwrap().to_string());
+    let method = parse_method(parts.next().unwrap());
     let target = parts.next().unwrap();
     let version = parts.next().unwrap().to_string();
 
@@ -60,15 +60,15 @@ fn parse_header(txt: &str) -> Option<(String, String)> {
 }
 
 pub fn parse_request(txt: String) -> Request {
-    let mut lines = txt.split("\r\n");
-
-    let (method, path, query, version) = parse_method_line(lines.next().unwrap().to_string());
-
     let (header_part, body_part) = txt.split_once("\r\n\r\n").unwrap_or((&txt, ""));
+
+    let mut lines = header_part.split("\r\n");
+
+    let (method, path, query, version) = parse_method_line(lines.next().unwrap());
 
     let mut headers = HashMap::new();
 
-    for line in header_part.split("\r\n") {
+    for line in lines {
         if let Some((key, value)) = parse_header(line) {
             headers.insert(key, value);
         }
