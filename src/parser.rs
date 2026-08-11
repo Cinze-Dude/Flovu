@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io};
+
+use crate::error::HttpError;
 
 #[derive(Debug, Clone)]
 pub struct Request {
@@ -24,25 +26,25 @@ pub enum Method {
     Unknown(String),
 }
 
-fn parse_method(txt: &str) -> Method {
+fn parse_method(txt: &str) -> Result<Method, HttpError> {
     match txt {
-        "CONNECT" => Method::Connect,
-        "DELETE" => Method::Delete,
-        "GET" => Method::Get,
-        "HEAD" => Method::Head,
-        "OPTIONS" => Method::Options,
-        "PATCH" => Method::Patch,
-        "POST" => Method::Post,
-        "PUT" => Method::Put,
-        "TRACE" => Method::Trace,
-        &_ => Method::Unknown(txt.to_string()),
+        "CONNECT" => Ok(Method::Connect),
+        "DELETE" => Ok(Method::Delete),
+        "GET" => Ok(Method::Get),
+        "HEAD" => Ok(Method::Head),
+        "OPTIONS" => Ok(Method::Options),
+        "PATCH" => Ok(Method::Patch),
+        "POST" => Ok(Method::Post),
+        "PUT" => Ok(Method::Put),
+        "TRACE" => Ok(Method::Trace),
+        &_ => Err(HttpError::InvalidMethod(Method::Unknown(txt.to_string()))),
     }
 }
 
-fn parse_method_line(txt: &str) -> (Method, String, Option<String>, String) {
+fn parse_method_line(txt: &str) -> Result<(Method, String, Option<String>, String), HttpError> {
     let mut parts = txt.split_whitespace();
 
-    let method = parse_method(parts.next().unwrap());
+    let method = parse_method(parts.next().unwrap())?;
     let target = parts.next().unwrap();
     let version = parts.next().unwrap().to_string();
 
@@ -51,30 +53,31 @@ fn parse_method_line(txt: &str) -> (Method, String, Option<String>, String) {
         None => (target.to_string(), None),
     };
 
-    (method, path, query, version)
+    Ok((method, path, query, version))
 }
 
-fn parse_header(txt: &str) -> Option<(String, String)> {
+fn parse_header(txt: &str) -> Result<(String, String), HttpError> {
     txt.split_once(':')
         .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .ok_or_else(|| HttpError::InvalidHeader(txt.to_string()))
 }
 
-pub fn parse_request(txt: String) -> Request {
-    let (header_part, body_part) = txt.split_once("\r\n\r\n").unwrap_or((&txt, ""));
+pub fn parse_request(txt: String) -> Result<Request, HttpError> {
+    let (header_part, body_part) = txt.split_once("\r\n\r\n").ok_or(HttpError::InvalidBody)?;
 
     let mut lines = header_part.split("\r\n");
 
-    let (method, path, query, version) = parse_method_line(lines.next().unwrap());
+    let (method, path, query, version) =
+        parse_method_line(lines.next().ok_or(HttpError::InvalidRequestLine)?)?;
 
     let mut headers = HashMap::new();
 
     for line in lines {
-        if let Some((key, value)) = parse_header(line) {
-            headers.insert(key, value);
-        }
+        let (key, value) = parse_header(line)?;
+        headers.insert(key, value);
     }
 
-    Request {
+    Ok(Request {
         method,
         path,
         query,
@@ -84,5 +87,5 @@ pub fn parse_request(txt: String) -> Request {
             "" => None,
             _ => Some(body_part.as_bytes().to_vec()),
         },
-    }
+    })
 }
