@@ -54,11 +54,9 @@ fn parse_method_line(txt: String) -> (Method, String, Option<String>, String) {
     (method, path, query, version)
 }
 
-fn parse_header(txt: String) -> (String, String) {
-    match txt.split_once(':') {
-        Some((key, value)) => (key.trim().to_string(), value.trim().to_string()),
-        None => (txt, String::new()),
-    }
+fn parse_header(txt: &str) -> Option<(String, String)> {
+    txt.split_once(':')
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
 }
 
 pub fn parse_request(txt: String) -> Request {
@@ -70,13 +68,10 @@ pub fn parse_request(txt: String) -> Request {
 
     let mut headers = HashMap::new();
 
-    for line in header_part.split("\r\n").skip(1) {
-        if line.is_empty() {
-            break;
+    for line in header_part.split("\r\n") {
+        if let Some((key, value)) = parse_header(line) {
+            headers.insert(key, value);
         }
-
-        let (hk, hv) = parse_header(line.to_string());
-        headers.insert(hk, hv);
     }
 
     Request {
