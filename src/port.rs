@@ -4,6 +4,8 @@ use std::{
     thread,
 };
 
+use crate::parser;
+
 pub struct PortState {
     port: u16,
     socket: Option<TcpListener>,
@@ -87,6 +89,7 @@ impl Port {
         let buffer = Vec::new();
         let request = Port::lex_request(&client, buffer)?;
         println!("{}", request);
+        println!("{:#?}", parser::parse_request(request));
 
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
 
