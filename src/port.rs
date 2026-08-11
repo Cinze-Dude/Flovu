@@ -6,7 +6,7 @@ use std::{
 
 pub struct PortState {
     port: u16,
-    socket: TcpListener,
+    socket: Option<TcpListener>,
     opts: VecInitOption,
 }
 
@@ -19,6 +19,7 @@ pub enum InitOption {
     Packet(Packet),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VecInitOption(Vec<InitOption>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,8 +36,18 @@ impl Default for VecInitOption {
 pub struct Port(PortState);
 
 impl Port {
-    pub fn begin(port: u16, opts: VecInitOption) -> io::Result<Self> {
-        let ip = opts
+    pub fn new(port: u16) -> Self {
+        Self(PortState {
+            port,
+            socket: None,
+            opts: VecInitOption::default(),
+        })
+    }
+
+    pub fn begin(&mut self) -> io::Result<()> {
+        let ip = self
+            .0
+            .opts
             .0
             .iter()
             .find_map(|option| {
@@ -47,13 +58,14 @@ impl Port {
                 }
             })
             .unwrap_or(IpAddr::from([0, 0, 0, 0]));
-        let socket = TcpListener::bind((ip, port))?;
+        let socket = TcpListener::bind((ip, self.0.port))?;
 
-        Ok(Self(PortState { port, socket, opts }))
+        self.0.socket = Some(socket);
+
+        Ok(())
     }
 
-    pub fn handle_client(mut client: TcpStream) -> io::Result<()> {
-        let mut buffer = Vec::new();
+    pub fn lex_request(mut client: &TcpStream, mut buffer: Vec<u8>) -> io::Result<String> {
         loop {
             let mut chunk = [0u8; 1024];
             let n = client.read(&mut chunk)?;
@@ -68,10 +80,12 @@ impl Port {
                 break;
             }
         }
+        String::from_utf8(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
 
-        let request =
-            String::from_utf8(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
+    pub fn handle_client(mut client: TcpStream) -> io::Result<()> {
+        let buffer = Vec::new();
+        let request = Port::lex_request(&client, buffer)?;
         println!("{}", request);
 
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
@@ -82,7 +96,16 @@ impl Port {
     }
 
     pub fn run(&self) -> io::Result<()> {
-        for connection in self.0.socket.incoming() {
+        for connection in self
+            .0
+            .socket
+            .as_ref()
+            .ok_or(io::Error::new(
+                io::ErrorKind::NotConnected,
+                "socket not initialized",
+            ))?
+            .incoming()
+        {
             let client = connection?;
             println!("Client connected: {:?}", client.peer_addr());
 
