@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    error::HttpError,
-    request::{self, parse_request},
-    response::handle,
+    error::{HttpError, HttpStatus},
+    handler::handle,
+    request::parse_request,
 };
 
 pub struct PortState {
@@ -19,7 +19,6 @@ pub struct PortState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InitOption {
     Binary,
-    Active,
     Ip(IpAddr),
     Nodelay,
     Packet(Packet),
@@ -71,52 +70,115 @@ impl Port {
         Ok(())
     }
 
-    pub fn lex_request(mut client: &TcpStream, mut buffer: Vec<u8>) -> io::Result<String> {
+    pub fn lex_request(client: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<Vec<u8>, HttpError> {
         loop {
-            let mut chunk = [0u8; 1024];
-            let n = client.read(&mut chunk)?;
+            // Read until we have the headers.
+            let boundary = loop {
+                if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+                    break pos;
+                }
 
-            if n == 0 {
-                break;
+                let mut chunk = [0u8; 1024];
+                let n = client.read(&mut chunk)?;
+
+                if n == 0 {
+                    return Err(HttpError::IncompleteRequest);
+                }
+
+                buffer.extend_from_slice(&chunk[..n]);
+            };
+
+            let body_start = boundary + 4;
+
+            let headers = std::str::from_utf8(&buffer[..boundary]).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidData, "invalid UTF-8 in headers")
+            })?;
+
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (key, value) = line.split_once(':')?;
+
+                    if key.trim().eq_ignore_ascii_case("content-length") {
+                        value.trim().parse::<usize>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+
+            let request_length = body_start + content_length;
+
+            // We already have the complete request.
+            if buffer.len() >= request_length {
+                let request = buffer[..request_length].to_vec();
+
+                // Keep anything belonging to the next request.
+                buffer.drain(..request_length);
+
+                return Ok(request);
             }
 
-            buffer.extend_from_slice(&chunk[..n]);
+            // Headers are complete, but the body isn't.
+            while buffer.len() < request_length {
+                let mut chunk = [0u8; 1024];
+                let n = client.read(&mut chunk)?;
 
-            if buffer.windows(4).any(|window| window == b"\r\n\r\n") {
-                break;
+                if n == 0 {
+                    return Err(HttpError::ClientDisconnected);
+                }
+
+                buffer.extend_from_slice(&chunk[..n]);
             }
+
+            let request = buffer[..request_length].to_vec();
+            buffer.drain(..request_length);
+
+            return Ok(request);
         }
-        String::from_utf8(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
     pub fn handle_client(mut client: TcpStream) -> Result<(), HttpError> {
-        let buffer = Vec::new();
-        let request = Port::lex_request(&client, buffer)?;
-        let parsedr = parse_request(request)?;
+        let mut buffer = Vec::new();
 
-        let response = handle(parsedr);
-        let respdata = response.serialize();
+        loop {
+            let raw = Port::lex_request(&mut client, &mut buffer)?;
 
-        client.write_all(&respdata)?;
+            let request = parse_request(&raw)?;
 
-        Ok(())
+            let response = handle(request);
+
+            client.write_all(&response.serialize())?;
+        }
     }
 
     pub fn run(&self) -> io::Result<()> {
-        for connection in self
+        let socket = self.0.socket.as_ref().ok_or(io::Error::new(
+            io::ErrorKind::NotConnected,
+            "socket not initialized",
+        ))?;
+
+        let nodelay = self
             .0
-            .socket
-            .as_ref()
-            .ok_or(io::Error::new(
-                io::ErrorKind::NotConnected,
-                "socket not initialized",
-            ))?
-            .incoming()
-        {
+            .opts
+            .0
+            .iter()
+            .any(|option| matches!(option, InitOption::Nodelay));
+
+        for connection in socket.incoming() {
             let client = connection?;
+
+            if nodelay {
+                client.set_nodelay(true)?;
+            }
+
             println!("Client connected: {:?}", client.peer_addr());
 
-            thread::spawn(move || Self::handle_client(client));
+            thread::spawn(move || {
+                if let Err(err) = Self::handle_client(client) {
+                    eprintln!("Client error: {}", err);
+                }
+            });
         }
 
         Ok(())

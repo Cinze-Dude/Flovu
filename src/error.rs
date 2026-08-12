@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io;
+use std::str::Utf8Error;
 
 use crate::request::Method;
 
@@ -25,11 +26,41 @@ pub enum HttpStatus {
     Ok,
 }
 
+impl fmt::Display for HttpStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (code, reason) = match self {
+            HttpStatus::Ok => (200, "Ok"),
+            HttpStatus::BadRequest => (400, "Bad Request"),
+            HttpStatus::Unauthorized => (401, "Unauthorized"),
+            HttpStatus::Forbidden => (403, "Forbidden"),
+            HttpStatus::NotFound => (404, "Not Found"),
+            HttpStatus::MethodNotAllowed => (405, "Method Not Allowed"),
+            HttpStatus::RequestTimeout => (408, "Request Timeout"),
+            HttpStatus::Conflict => (409, "Conflict"),
+            HttpStatus::ContentTooLarge => (413, "Content Too Large"),
+            HttpStatus::URITooLong => (414, "URI Too Long"),
+            HttpStatus::UnsupportedMediaType => (415, "Unsupported Media Type"),
+            HttpStatus::Teapot => (418, "I'm a teapot"),
+            HttpStatus::TooManyRequests => (429, "Too Many Requests"),
+
+            HttpStatus::InternalServerError => (500, "Internal Server Error"),
+            HttpStatus::NotImplemented => (501, "Not Implemented"),
+            HttpStatus::BadGateway => (502, "Bad Gateway"),
+            HttpStatus::ServiceUnavailable => (503, "Service Unavailable"),
+            HttpStatus::GatewayTimeout => (504, "Gateway Timeout"),
+        };
+        write!(f, "{} {}", code, reason)
+    }
+}
+
 #[derive(Debug)]
 pub enum HttpError {
     Io(io::Error),
-
+    Utf8(Utf8Error),
     Http(HttpStatus),
+
+    IncompleteRequest,
+    ClientDisconnected,
 
     InvalidRequestLine,
     InvalidMethod(Method),
@@ -77,6 +108,12 @@ impl From<io::Error> for HttpError {
     }
 }
 
+impl From<Utf8Error> for HttpError {
+    fn from(value: Utf8Error) -> Self {
+        Self::Utf8(value)
+    }
+}
+
 impl From<HttpStatus> for HttpError {
     fn from(status: HttpStatus) -> Self {
         Self::Http(status)
@@ -88,31 +125,13 @@ impl fmt::Display for HttpError {
         match self {
             Self::Io(err) => write!(f, "I/O error: {}", err),
 
-            Self::Http(status) => {
-                let (code, reason) = match status {
-                    HttpStatus::Ok => (200, "Ok"),
-                    HttpStatus::BadRequest => (400, "Bad Request"),
-                    HttpStatus::Unauthorized => (401, "Unauthorized"),
-                    HttpStatus::Forbidden => (403, "Forbidden"),
-                    HttpStatus::NotFound => (404, "Not Found"),
-                    HttpStatus::MethodNotAllowed => (405, "Method Not Allowed"),
-                    HttpStatus::RequestTimeout => (408, "Request Timeout"),
-                    HttpStatus::Conflict => (409, "Conflict"),
-                    HttpStatus::ContentTooLarge => (413, "Content Too Large"),
-                    HttpStatus::URITooLong => (414, "URI Too Long"),
-                    HttpStatus::UnsupportedMediaType => (415, "Unsupported Media Type"),
-                    HttpStatus::Teapot => (418, "I'm a teapot"),
-                    HttpStatus::TooManyRequests => (429, "Too Many Requests"),
+            Self::Http(status) => write!(f, "{status}"),
 
-                    HttpStatus::InternalServerError => (500, "Internal Server Error"),
-                    HttpStatus::NotImplemented => (501, "Not Implemented"),
-                    HttpStatus::BadGateway => (502, "Bad Gateway"),
-                    HttpStatus::ServiceUnavailable => (503, "Service Unavailable"),
-                    HttpStatus::GatewayTimeout => (504, "Gateway Timeout"),
-                };
+            Self::Utf8(err) => write!(f, "{err}"),
 
-                write!(f, "{} {}", reason, code)
-            }
+            Self::ClientDisconnected => write!(f, "Client Disconnected while sending a message"),
+
+            Self::IncompleteRequest => write!(f, "Incomplete Request"),
 
             Self::InvalidRequestLine => write!(f, "Invalid HTTP request line"),
 

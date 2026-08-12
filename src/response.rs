@@ -13,9 +13,9 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn new(status: HttpStatus) -> Self {
+    pub fn new(status: HttpStatus, version: String) -> Self {
         Self {
-            version: "HTTP/1.1".to_string(),
+            version: version,
             status,
             headers: HashMap::new(),
             body: None,
@@ -62,15 +62,8 @@ impl Response {
 
         bytes
     }
-}
 
-pub fn handle(request: Request) -> Response {
-    match request.path.as_str() {
-        "/" => Response::new(HttpStatus::Ok)
-            .header("content-type", "text/html")
-            .body(b"<h1>Hello Flovu!</h1>".to_vec()),
-        _ => Response::new(HttpStatus::NotFound)
-            .header("content-type", "text/plain")
-            .body(b"Not Found".to_vec()),
+    pub fn remove_body(&mut self) {
+        self.body = None;
     }
 }

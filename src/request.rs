@@ -7,12 +7,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Request {
-    method: Method,
+    pub method: Method,
     pub path: String,
     query: Option<String>,
-    version: String,
-    headers: HashMap<String, String>,
-    body: Option<Vec<u8>>,
+    pub version: String,
+    pub headers: HashMap<String, String>,
+    pub body: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,8 +74,14 @@ fn parse_header(txt: &str) -> Result<(String, String), HttpError> {
     Ok((key, value))
 }
 
-pub fn parse_request(txt: String) -> Result<Request, HttpError> {
-    let (header_part, body_part) = txt.split_once("\r\n\r\n").ok_or(HttpError::InvalidBody)?;
+pub fn parse_request(raw: &[u8]) -> Result<Request, HttpError> {
+    let boundary = raw
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or(HttpError::MissingHeaderTerminator)?;
+
+    let header_part = str::from_utf8(&raw[..boundary])?;
+    let body_part = &raw[boundary + 4..];
 
     let mut lines = header_part.split("\r\n");
 
@@ -89,15 +95,36 @@ pub fn parse_request(txt: String) -> Result<Request, HttpError> {
         if !(valid_header_name(&key) && valid_header_value(&value)) {
             return Err(HttpError::InvalidHeader(key, value));
         }
-        headers.insert(key, value);
+        headers.insert(key.to_ascii_lowercase(), value);
+    }
+
+    let body = match body_part {
+        b"" => None,
+        _ => Some(body_part.to_vec()),
+    };
+
+    if let Some(inner) = body.as_ref() {
+        let value = headers
+            .get("content-length")
+            .ok_or(HttpError::MissingContentLength)?;
+
+        let len = value
+            .parse::<usize>()
+            .map_err(|_| HttpError::InvalidContentLength)?;
+
+        if len != inner.len() {
+            return Err(HttpError::InvalidContentLength);
+        }
     }
 
     if !valid_path(&path) {
         return Err(HttpError::InvalidPath(path));
     }
 
-    if !valid_query(query.as_deref()) {
-        return Err(HttpError::InvalidQuery(query.unwrap()));
+    if let Some(query) = query.as_deref() {
+        if !valid_query(Some(query)) {
+            return Err(HttpError::InvalidQuery(query.to_string()));
+        }
     }
 
     if !valid_version(&version) {
@@ -110,9 +137,6 @@ pub fn parse_request(txt: String) -> Result<Request, HttpError> {
         query,
         version,
         headers,
-        body: match body_part {
-            "" => None,
-            _ => Some(body_part.as_bytes().to_vec()),
-        },
+        body,
     })
 }
