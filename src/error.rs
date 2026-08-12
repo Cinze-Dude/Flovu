@@ -22,6 +22,7 @@ pub enum HttpStatus {
     BadGateway,
     ServiceUnavailable,
     GatewayTimeout,
+    Ok,
 }
 
 #[derive(Debug)]
@@ -47,6 +48,7 @@ pub enum HttpError {
 impl HttpStatus {
     pub fn code(&self) -> u16 {
         match self {
+            Self::Ok => 200,
             Self::BadRequest => 400,
             Self::Unauthorized => 401,
             Self::Forbidden => 403,
@@ -88,6 +90,7 @@ impl fmt::Display for HttpError {
 
             Self::Http(status) => {
                 let (code, reason) = match status {
+                    HttpStatus::Ok => (200, "Ok"),
                     HttpStatus::BadRequest => (400, "Bad Request"),
                     HttpStatus::Unauthorized => (401, "Unauthorized"),
                     HttpStatus::Forbidden => (403, "Forbidden"),
@@ -108,7 +111,7 @@ impl fmt::Display for HttpError {
                     HttpStatus::GatewayTimeout => (504, "Gateway Timeout"),
                 };
 
-                write!(f, "{}: {}", reason, code)
+                write!(f, "{} {}", reason, code)
             }
 
             Self::InvalidRequestLine => write!(f, "Invalid HTTP request line"),

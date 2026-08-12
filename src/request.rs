@@ -8,7 +8,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Request {
     method: Method,
-    path: String,
+    pub path: String,
     query: Option<String>,
     version: String,
     headers: HashMap<String, String>,

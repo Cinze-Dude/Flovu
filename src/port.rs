@@ -4,7 +4,11 @@ use std::{
     thread,
 };
 
-use crate::request;
+use crate::{
+    error::HttpError,
+    request::{self, parse_request},
+    response::handle,
+};
 
 pub struct PortState {
     port: u16,
@@ -85,15 +89,15 @@ impl Port {
         String::from_utf8(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
-    pub fn handle_client(mut client: TcpStream) -> io::Result<()> {
+    pub fn handle_client(mut client: TcpStream) -> Result<(), HttpError> {
         let buffer = Vec::new();
         let request = Port::lex_request(&client, buffer)?;
-        println!("{}", request);
-        println!("{:#?}", request::parse_request(request));
+        let parsedr = parse_request(request)?;
 
-        let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
+        let response = handle(parsedr);
+        let respdata = response.serialize();
 
-        client.write_all(response)?;
+        client.write_all(&respdata)?;
 
         Ok(())
     }
