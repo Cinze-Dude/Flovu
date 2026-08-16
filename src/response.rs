@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    error::{HttpError, HttpStatus},
-    request::Request,
-};
+use crate::error::{HttpError, HttpStatus};
 
 pub struct Response {
     version: String,

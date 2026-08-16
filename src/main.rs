@@ -8,11 +8,13 @@ mod validate;
 use port::Port;
 
 fn main() -> std::io::Result<()> {
-    let mut port = Port::new(1600);
+    const PORT: u16 = 1600;
+
+    let mut port = Port::new(PORT);
 
     port.begin()?;
 
-    println!("Listening on port 4050");
+    println!("Listening on port {}", PORT);
 
     port.run()?;
 

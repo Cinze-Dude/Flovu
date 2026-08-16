@@ -4,11 +4,7 @@ use std::{
     thread,
 };
 
-use crate::{
-    error::{HttpError, HttpStatus},
-    handler::handle,
-    request::parse_request,
-};
+use crate::{error::HttpError, handler::handle, request::parse_request};
 
 pub struct PortState {
     port: u16,
@@ -71,78 +67,71 @@ impl Port {
     }
 
     pub fn lex_request(client: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<Vec<u8>, HttpError> {
-        loop {
-            // Read until we have the headers.
-            let boundary = loop {
-                if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
-                    break pos;
-                }
-
-                let mut chunk = [0u8; 1024];
-                let n = client.read(&mut chunk)?;
-
-                if n == 0 {
-                    return Err(HttpError::IncompleteRequest);
-                }
-
-                buffer.extend_from_slice(&chunk[..n]);
-            };
-
-            let body_start = boundary + 4;
-
-            let headers = std::str::from_utf8(&buffer[..boundary]).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "invalid UTF-8 in headers")
-            })?;
-
-            let content_length = headers
-                .lines()
-                .find_map(|line| {
-                    let (key, value) = line.split_once(':')?;
-
-                    if key.trim().eq_ignore_ascii_case("content-length") {
-                        value.trim().parse::<usize>().ok()
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-
-            let request_length = body_start + content_length;
-
-            // We already have the complete request.
-            if buffer.len() >= request_length {
-                let request = buffer[..request_length].to_vec();
-
-                // Keep anything belonging to the next request.
-                buffer.drain(..request_length);
-
-                return Ok(request);
+        // Read until we have the complete headers.
+        let boundary = loop {
+            if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+                break pos;
             }
 
-            // Headers are complete, but the body isn't.
-            while buffer.len() < request_length {
-                let mut chunk = [0u8; 1024];
-                let n = client.read(&mut chunk)?;
+            let mut chunk = [0u8; 1024];
+            let n = client.read(&mut chunk)?;
 
-                if n == 0 {
-                    return Err(HttpError::ClientDisconnected);
-                }
-
-                buffer.extend_from_slice(&chunk[..n]);
+            if n == 0 {
+                return Err(HttpError::IncompleteRequest);
             }
 
-            let request = buffer[..request_length].to_vec();
-            buffer.drain(..request_length);
+            buffer.extend_from_slice(&chunk[..n]);
+        };
 
-            return Ok(request);
+        let body_start = boundary + 4;
+
+        let headers = std::str::from_utf8(&buffer[..boundary])?;
+
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (key, value) = line.split_once(':')?;
+
+                if key.trim().eq_ignore_ascii_case("content-length") {
+                    value.trim().parse::<usize>().ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+
+        let request_length = body_start + content_length;
+
+        // Read until the complete body has arrived.
+        while buffer.len() < request_length {
+            let mut chunk = [0u8; 1024];
+            let n = client.read(&mut chunk)?;
+
+            if n == 0 {
+                return Err(HttpError::ClientDisconnected);
+            }
+
+            buffer.extend_from_slice(&chunk[..n]);
         }
+
+        // Extract exactly ONE request.
+        let request = buffer[..request_length].to_vec();
+
+        // Keep bytes belonging to the next request.
+        buffer.drain(..request_length);
+
+        Ok(request)
     }
 
     pub fn handle_client(mut client: TcpStream) -> Result<(), HttpError> {
         let mut buffer = Vec::new();
 
         loop {
-            let raw = Port::lex_request(&mut client, &mut buffer)?;
+            let raw = match Port::lex_request(&mut client, &mut buffer) {
+                Ok(raw) => raw,
+                Err(HttpError::ClientDisconnected) => break,
+                Err(err) => return Err(err),
+            };
 
             let request = parse_request(&raw)?;
 
@@ -150,6 +139,8 @@ impl Port {
 
             client.write_all(&response.serialize())?;
         }
+
+        Ok(())
     }
 
     pub fn run(&self) -> io::Result<()> {
