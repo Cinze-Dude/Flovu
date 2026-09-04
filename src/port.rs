@@ -66,8 +66,10 @@ impl Port {
         Ok(())
     }
 
-    pub fn lex_request(client: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<Vec<u8>, HttpError> {
-        // Read until we have the complete headers.
+    pub fn lex_request(
+        client: &mut TcpStream,
+        buffer: &mut Vec<u8>,
+    ) -> Result<Option<Vec<u8>>, HttpError> {
         let boundary = loop {
             if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
                 break pos;
@@ -77,6 +79,10 @@ impl Port {
             let n = client.read(&mut chunk)?;
 
             if n == 0 {
+                if buffer.is_empty() {
+                    return Ok(None);
+                }
+
                 return Err(HttpError::IncompleteRequest);
             }
 
@@ -102,40 +108,45 @@ impl Port {
 
         let request_length = body_start + content_length;
 
-        // Read until the complete body has arrived.
         while buffer.len() < request_length {
             let mut chunk = [0u8; 1024];
             let n = client.read(&mut chunk)?;
 
             if n == 0 {
-                return Err(HttpError::ClientDisconnected);
+                return Err(HttpError::IncompleteRequest);
             }
 
             buffer.extend_from_slice(&chunk[..n]);
         }
 
-        // Extract exactly ONE request.
         let request = buffer[..request_length].to_vec();
 
-        // Keep bytes belonging to the next request.
         buffer.drain(..request_length);
 
-        Ok(request)
+        Ok(Some(request))
     }
 
     pub fn handle_client(mut client: TcpStream) -> Result<(), HttpError> {
         let mut buffer = Vec::new();
 
         loop {
-            let raw = match Port::lex_request(&mut client, &mut buffer) {
-                Ok(raw) => raw,
-                Err(HttpError::ClientDisconnected) => break,
-                Err(err) => return Err(err),
+            let Some(raw) = Port::lex_request(&mut client, &mut buffer)? else {
+                break;
             };
 
             let request = parse_request(&raw)?;
 
+            let closed = request
+                .headers
+                .get("connection")
+                .is_some_and(|v| v.eq_ignore_ascii_case("close"));
+
             let response = handle(request);
+
+            if closed {
+                println!("Client Disconnected: {:?}", client.peer_addr());
+                break;
+            }
 
             client.write_all(&response.serialize())?;
         }
