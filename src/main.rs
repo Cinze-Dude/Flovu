@@ -7,16 +7,17 @@ mod validate;
 
 use port::Port;
 
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
     const PORT: u16 = 1600;
 
     let mut port = Port::new(PORT);
 
-    port.begin()?;
+    port.begin().await?;
 
     println!("Listening on port {}", PORT);
 
-    port.run()?;
+    port.run().await?;
 
     Ok(())
 }

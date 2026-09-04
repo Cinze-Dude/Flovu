@@ -1,7 +1,8 @@
-use std::{
-    io::{self, Read, Write},
-    net::{IpAddr, TcpListener, TcpStream},
-    thread,
+use std::net::{IpAddr, SocketAddr};
+
+use tokio::{
+    io::{self, AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
 };
 
 use crate::{error::HttpError, handler::handle, request::parse_request};
@@ -45,7 +46,7 @@ impl Port {
         })
     }
 
-    pub fn begin(&mut self) -> io::Result<()> {
+    pub async fn begin(&mut self) -> io::Result<()> {
         let ip = self
             .0
             .opts
@@ -59,14 +60,14 @@ impl Port {
                 }
             })
             .unwrap_or(IpAddr::from([0, 0, 0, 0]));
-        let socket = TcpListener::bind((ip, self.0.port))?;
+        let socket = TcpListener::bind((ip, self.0.port)).await?;
 
         self.0.socket = Some(socket);
 
         Ok(())
     }
 
-    pub fn lex_request(
+    pub async fn lex_request(
         client: &mut TcpStream,
         buffer: &mut Vec<u8>,
     ) -> Result<Option<Vec<u8>>, HttpError> {
@@ -76,7 +77,7 @@ impl Port {
             }
 
             let mut chunk = [0u8; 1024];
-            let n = client.read(&mut chunk)?;
+            let n = client.read(&mut chunk).await?;
 
             if n == 0 {
                 if buffer.is_empty() {
@@ -110,7 +111,7 @@ impl Port {
 
         while buffer.len() < request_length {
             let mut chunk = [0u8; 1024];
-            let n = client.read(&mut chunk)?;
+            let n = client.read(&mut chunk).await?;
 
             if n == 0 {
                 return Err(HttpError::IncompleteRequest);
@@ -126,11 +127,11 @@ impl Port {
         Ok(Some(request))
     }
 
-    pub fn handle_client(mut client: TcpStream) -> Result<(), HttpError> {
+    pub async fn handle_client(mut client: TcpStream, addr: SocketAddr) -> Result<(), HttpError> {
         let mut buffer = Vec::new();
 
         loop {
-            let Some(raw) = Port::lex_request(&mut client, &mut buffer)? else {
+            let Some(raw) = Port::lex_request(&mut client, &mut buffer).await? else {
                 break;
             };
 
@@ -144,17 +145,17 @@ impl Port {
             let response = handle(request);
 
             if closed {
-                println!("Client Disconnected: {:?}", client.peer_addr());
+                println!("Client Disconnected: {:?}", addr);
                 break;
             }
 
-            client.write_all(&response.serialize())?;
+            client.write_all(&response.serialize()).await?;
         }
 
         Ok(())
     }
 
-    pub fn run(&self) -> io::Result<()> {
+    pub async fn run(&self) -> io::Result<()> {
         let socket = self.0.socket.as_ref().ok_or(io::Error::new(
             io::ErrorKind::NotConnected,
             "socket not initialized",
@@ -167,22 +168,20 @@ impl Port {
             .iter()
             .any(|option| matches!(option, InitOption::Nodelay));
 
-        for connection in socket.incoming() {
-            let client = connection?;
+        loop {
+            let (client, addr) = socket.accept().await?;
 
             if nodelay {
                 client.set_nodelay(true)?;
             }
 
-            println!("Client connected: {:?}", client.peer_addr());
+            println!("Client connected: {:?}", addr);
 
-            thread::spawn(move || {
-                if let Err(err) = Self::handle_client(client) {
+            tokio::spawn(async move {
+                if let Err(err) = Self::handle_client(client, addr).await {
                     eprintln!("Client error: {}", err);
                 }
             });
         }
-
-        Ok(())
     }
 }
