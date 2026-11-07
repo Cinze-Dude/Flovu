@@ -28,27 +28,28 @@ pub enum HttpStatus {
 
 impl fmt::Display for HttpStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (code, reason) = match self {
-            HttpStatus::Ok => (200, "Ok"),
-            HttpStatus::BadRequest => (400, "Bad Request"),
-            HttpStatus::Unauthorized => (401, "Unauthorized"),
-            HttpStatus::Forbidden => (403, "Forbidden"),
-            HttpStatus::NotFound => (404, "Not Found"),
-            HttpStatus::MethodNotAllowed => (405, "Method Not Allowed"),
-            HttpStatus::RequestTimeout => (408, "Request Timeout"),
-            HttpStatus::Conflict => (409, "Conflict"),
-            HttpStatus::ContentTooLarge => (413, "Content Too Large"),
-            HttpStatus::URITooLong => (414, "URI Too Long"),
-            HttpStatus::UnsupportedMediaType => (415, "Unsupported Media Type"),
-            HttpStatus::Teapot => (418, "I'm a teapot"),
-            HttpStatus::TooManyRequests => (429, "Too Many Requests"),
+        let reason = match self {
+            HttpStatus::Ok => "Ok",
+            HttpStatus::BadRequest => "Bad Request",
+            HttpStatus::Unauthorized => "Unauthorized",
+            HttpStatus::Forbidden => "Forbidden",
+            HttpStatus::NotFound => "Not Found",
+            HttpStatus::MethodNotAllowed => "Method Not Allowed",
+            HttpStatus::RequestTimeout => "Request Timeout",
+            HttpStatus::Conflict => "Conflict",
+            HttpStatus::ContentTooLarge => "Content Too Large",
+            HttpStatus::URITooLong => "URI Too Long",
+            HttpStatus::UnsupportedMediaType => "Unsupported Media Type",
+            HttpStatus::Teapot => "I'm a teapot",
+            HttpStatus::TooManyRequests => "Too Many Requests",
 
-            HttpStatus::InternalServerError => (500, "Internal Server Error"),
-            HttpStatus::NotImplemented => (501, "Not Implemented"),
-            HttpStatus::BadGateway => (502, "Bad Gateway"),
-            HttpStatus::ServiceUnavailable => (503, "Service Unavailable"),
-            HttpStatus::GatewayTimeout => (504, "Gateway Timeout"),
+            HttpStatus::InternalServerError => "Internal Server Error",
+            HttpStatus::NotImplemented => "Not Implemented",
+            HttpStatus::BadGateway => "Bad Gateway",
+            HttpStatus::ServiceUnavailable => "Service Unavailable",
+            HttpStatus::GatewayTimeout => "Gateway Timeout",
         };
+        let code = self.code();
         write!(f, "{} {}", code, reason)
     }
 }

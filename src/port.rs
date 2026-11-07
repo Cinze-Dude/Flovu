@@ -105,7 +105,7 @@ impl Port {
                     None
                 }
             })
-            .unwrap_or(0);
+            .ok_or(HttpError::InvalidContentLength)?;
 
         let request_length = body_start + content_length;
 

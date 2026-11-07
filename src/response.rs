@@ -12,7 +12,7 @@ pub struct Response {
 impl Response {
     pub fn new(status: HttpStatus, version: String) -> Self {
         Self {
-            version: version,
+            version,
             status,
             headers: HashMap::new(),
             body: None,
