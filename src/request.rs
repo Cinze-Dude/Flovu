@@ -98,24 +98,25 @@ pub fn parse_request(raw: &[u8]) -> Result<Request, HttpError> {
         headers.insert(key.to_ascii_lowercase(), value);
     }
 
-    let body = match body_part {
-        b"" => None,
-        _ => Some(body_part.to_vec()),
-    };
+    let content_length = headers
+        .get("content-length")
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .map_err(|_| HttpError::InvalidContentLength)
+        })
+        .transpose()?
+        .unwrap_or(0usize);
 
-    if let Some(inner) = body.as_ref() {
-        let value = headers
-            .get("content-length")
-            .ok_or(HttpError::MissingContentLength)?;
-
-        let len = value
-            .parse::<usize>()
-            .map_err(|_| HttpError::InvalidContentLength)?;
-
-        if len != inner.len() {
+    let body = if content_length == 0 {
+        None
+    } else {
+        if body_part.len() < content_length {
             return Err(HttpError::InvalidContentLength);
         }
-    }
+
+        Some(body_part[..content_length].to_vec())
+    };
 
     if !valid_path(&path) {
         return Err(HttpError::InvalidPath(path));

@@ -94,18 +94,22 @@ impl Port {
 
         let headers = std::str::from_utf8(&buffer[..boundary])?;
 
-        let content_length = headers
-            .lines()
-            .find_map(|line| {
-                let (key, value) = line.split_once(':')?;
+        let mut content_length = 0usize;
 
-                if key.trim().eq_ignore_ascii_case("content-length") {
-                    value.trim().parse::<usize>().ok()
-                } else {
-                    None
-                }
-            })
-            .ok_or(HttpError::InvalidContentLength)?;
+        for line in headers.lines().skip(1) {
+            let Some((key, value)) = line.split_once(':') else {
+                continue;
+            };
+
+            if key.trim().eq_ignore_ascii_case("content-length") {
+                content_length = value
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|_| HttpError::InvalidContentLength)?;
+
+                break;
+            }
+        }
 
         let request_length = body_start + content_length;
 
