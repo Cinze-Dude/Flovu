@@ -8,7 +8,7 @@ mod validate;
 
 use port::Port;
 
-use crate::{rfuncs::basic::BasicRfuncs, router::Router};
+use crate::{rfuncs::file::FileRfuncs, router::Router};
 
 const PORT: u16 = 1600;
 
@@ -16,8 +16,9 @@ const PORT: u16 = 1600;
 async fn main() -> std::io::Result<()> {
     let mut port = Port::new(PORT);
     let mut router = Router::new();
-
-    router.route_get("/plswork", "text/plain", "Hello, World!");
+    
+    router.route_html("/john", "john.html");
+    router.route_html("/mark", "mark.html");
 
     port.begin().await?;
 
