@@ -5,7 +5,7 @@ use crate::{
     validate::{valid_header_name, valid_header_value, valid_path, valid_query, valid_version},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
     pub method: Method,
     pub path: String,
@@ -15,7 +15,7 @@ pub struct Request {
     pub body: Option<Vec<u8>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Method {
     Connect,
     Delete,

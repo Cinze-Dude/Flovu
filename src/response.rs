@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::error::{HttpError, HttpStatus};
 
 pub struct Response {
-    version: String,
+    pub(crate) version: String,
     status: HttpStatus,
     headers: HashMap<String, String>,
     body: Option<Vec<u8>>,

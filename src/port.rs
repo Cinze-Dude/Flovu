@@ -5,7 +5,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::{error::HttpError, handler::handle, request::parse_request};
+use crate::{error::HttpError, request::parse_request};
 
 pub struct PortState {
     port: u16,
