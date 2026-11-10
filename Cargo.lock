@@ -3,13 +3,6 @@
 version = 4
 
 [[package]]
-name = "Flovu"
-version = "0.1.0"
-dependencies = [
- "tokio",
-]
-
-[[package]]
 name = "bitflags"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -35,6 +28,13 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys",
+]
+
+[[package]]
+name = "flovu"
+version = "0.1.0"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]

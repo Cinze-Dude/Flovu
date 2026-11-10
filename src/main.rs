@@ -1,14 +1,4 @@
-mod error;
-mod port;
-mod request;
-mod response;
-mod rfuncs;
-mod router;
-mod validate;
-
-use port::Port;
-
-use crate::{rfuncs::file::FileRfuncs, router::Router};
+use flovu::{port::Port, rfuncs::file::FileRfuncs, router::Router};
 
 const PORT: u16 = 1600;
 
@@ -16,7 +6,7 @@ const PORT: u16 = 1600;
 async fn main() -> std::io::Result<()> {
     let mut port = Port::new(PORT);
     let mut router = Router::new();
-    
+
     router.route_html("/john", "john.html");
     router.route_html("/mark", "mark.html");
 
