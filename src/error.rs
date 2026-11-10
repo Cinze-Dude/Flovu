@@ -4,6 +4,7 @@ use std::str::Utf8Error;
 
 use crate::request::Method;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum HttpStatus {
     BadRequest,
@@ -54,6 +55,7 @@ impl fmt::Display for HttpStatus {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum HttpError {
     Io(io::Error),

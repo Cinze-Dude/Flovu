@@ -16,6 +16,7 @@ pub struct PortState {
     opts: VecInitOption,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InitOption {
     Binary,

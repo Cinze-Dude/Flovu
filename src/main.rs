@@ -2,21 +2,22 @@ mod error;
 mod port;
 mod request;
 mod response;
+mod rfuncs;
 mod router;
 mod validate;
 
 use port::Port;
 
-use crate::router::Router;
+use crate::{rfuncs::basic::BasicRfuncs, router::Router};
 
 const PORT: u16 = 1600;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let mut port = Port::new(PORT);
-    let router = Router::new();
+    let mut router = Router::new();
 
-    router.route_get(path, content, body);
+    router.route_get("/plswork", "text/plain", "Hello, World!");
 
     port.begin().await?;
 

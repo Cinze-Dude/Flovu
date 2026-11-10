@@ -59,8 +59,4 @@ impl Response {
 
         bytes
     }
-
-    pub fn remove_body(&mut self) {
-        self.body = None;
-    }
 }
