@@ -14,13 +14,15 @@ const PORT: u16 = 1600;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let mut port = Port::new(PORT);
-    let mut router = Router::new();
+    let router = Router::new();
+
+    router.route_get(path, content, body);
 
     port.begin().await?;
 
     println!("Listening on port {}", PORT);
 
-    port.run(&router).await?;
+    port.run(router.arc()).await?;
 
     Ok(())
 }

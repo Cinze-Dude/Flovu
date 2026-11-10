@@ -1,4 +1,7 @@
-use std::net::{IpAddr, SocketAddr};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
@@ -163,7 +166,7 @@ impl Port {
         Ok(())
     }
 
-    pub async fn run(&self, router: &Router) -> io::Result<()> {
+    pub async fn run(&self, router: Arc<Router>) -> io::Result<()> {
         let socket = self.0.socket.as_ref().ok_or(io::Error::new(
             io::ErrorKind::NotConnected,
             "socket not initialized",
@@ -185,8 +188,10 @@ impl Port {
 
             println!("Client connected: {:?}", addr);
 
+            let router = Arc::clone(&router);
+
             tokio::spawn(async move {
-                if let Err(err) = Self::handle_client(client, addr, router).await {
+                if let Err(err) = Self::handle_client(client, addr, &router).await {
                     eprintln!("Client error: {}", err);
                 }
             });
