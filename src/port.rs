@@ -5,7 +5,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::{error::HttpError, request::parse_request};
+use crate::{error::HttpError, request::parse_request, router::Router};
 
 pub struct PortState {
     port: u16,
@@ -131,7 +131,11 @@ impl Port {
         Ok(Some(request))
     }
 
-    pub async fn handle_client(mut client: TcpStream, addr: SocketAddr) -> Result<(), HttpError> {
+    pub async fn handle_client(
+        mut client: TcpStream,
+        addr: SocketAddr,
+        router: &Router,
+    ) -> Result<(), HttpError> {
         let mut buffer = Vec::new();
 
         loop {
@@ -146,7 +150,7 @@ impl Port {
                 .get("connection")
                 .is_some_and(|v| v.eq_ignore_ascii_case("close"));
 
-            let response = handle(request);
+            let response = router.handle(request);
 
             if closed {
                 println!("Client Disconnected: {:?}", addr);
@@ -159,7 +163,7 @@ impl Port {
         Ok(())
     }
 
-    pub async fn run(&self) -> io::Result<()> {
+    pub async fn run(&self, router: &Router) -> io::Result<()> {
         let socket = self.0.socket.as_ref().ok_or(io::Error::new(
             io::ErrorKind::NotConnected,
             "socket not initialized",
@@ -182,7 +186,7 @@ impl Port {
             println!("Client connected: {:?}", addr);
 
             tokio::spawn(async move {
-                if let Err(err) = Self::handle_client(client, addr).await {
+                if let Err(err) = Self::handle_client(client, addr, router).await {
                     eprintln!("Client error: {}", err);
                 }
             });
