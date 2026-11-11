@@ -10,11 +10,7 @@ use tokio::{
 
 use crate::{error::HttpError, request::parse_request, router::Router};
 
-pub struct PortState {
-    port: u16,
-    socket: Option<TcpListener>,
-    opts: VecInitOption,
-}
+type VecInitOption = Vec<InitOption>;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,36 +21,35 @@ pub enum InitOption {
     Packet(Packet),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VecInitOption(Vec<InitOption>);
+impl InitOption {
+    fn defaultvec() -> Vec<Self> {
+        vec![InitOption::Binary, InitOption::Packet(Packet::Raw)]
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Packet {
     Raw,
 }
 
-impl Default for VecInitOption {
-    fn default() -> Self {
-        VecInitOption(vec![InitOption::Binary, InitOption::Packet(Packet::Raw)])
-    }
+pub struct Port {
+    pub port: u16,
+    pub opts: VecInitOption,
+    socket: Option<TcpListener>,
 }
-
-pub struct Port(PortState);
 
 impl Port {
     pub fn new(port: u16) -> Self {
-        Self(PortState {
+        Self {
             port,
             socket: None,
-            opts: VecInitOption::default(),
-        })
+            opts: InitOption::defaultvec(),
+        }
     }
 
     pub async fn begin(&mut self) -> io::Result<()> {
         let ip = self
-            .0
             .opts
-            .0
             .iter()
             .find_map(|option| {
                 if let InitOption::Ip(inner_ip) = option {
@@ -64,9 +59,9 @@ impl Port {
                 }
             })
             .unwrap_or(IpAddr::from([0, 0, 0, 0]));
-        let socket = TcpListener::bind((ip, self.0.port)).await?;
+        let socket = TcpListener::bind((ip, self.port)).await?;
 
-        self.0.socket = Some(socket);
+        self.socket = Some(socket);
 
         Ok(())
     }
@@ -168,15 +163,13 @@ impl Port {
     }
 
     pub async fn run(&self, router: Arc<Router>) -> io::Result<()> {
-        let socket = self.0.socket.as_ref().ok_or(io::Error::new(
+        let socket = self.socket.as_ref().ok_or(io::Error::new(
             io::ErrorKind::NotConnected,
             "socket not initialized",
         ))?;
 
         let nodelay = self
-            .0
             .opts
-            .0
             .iter()
             .any(|option| matches!(option, InitOption::Nodelay));
 
