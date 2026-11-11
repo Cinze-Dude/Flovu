@@ -13,17 +13,10 @@ s.connect(("127.0.0.1", 1600))
 
 
 s.sendall(
-    b"POST /echo HTTP/1.1\r\n"
-    b"Host: localhost\r\n"
-    b"Content-Length: 5\r\n"
+    b"CONNECT www.youtube.com:443 HTTP/1.1\r\n"
+    b"Host: www.youtube.com:443\r\n"
     b"\r\n"
 )
-
-s.sendall(b"he")
-
-time.sleep(10)
-
-s.sendall(b"llo")
 
 response = s.recv(4096)
 print(response.decode(errors="replace"))

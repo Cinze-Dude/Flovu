@@ -50,11 +50,11 @@ impl Router {
         std::sync::Arc::new(self)
     }
 
-    pub fn handle(&self, request: Request) -> Response {
+    pub fn handle(&self, request: &Request) -> Response {
         let errr = Response::new(HttpStatus::NotFound, request.version.clone());
         self.routes
             .get(&(request.method.clone(), request.path.clone()))
-            .map_or_else(|| errr, |handler| handler(request))
+            .map_or_else(|| errr, |handler| handler(request.clone()))
     }
 
     pub fn route<F, M: IntoMethod>(&mut self, method: M, path: &str, handler: F)

@@ -1,5 +1,5 @@
 pub fn valid_path(path: &str) -> bool {
-    !path.is_empty() && path.starts_with('/')
+    !path.is_empty()
 }
 
 pub fn valid_query(query: Option<&str>) -> bool {

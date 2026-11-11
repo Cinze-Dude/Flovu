@@ -1,32 +1,32 @@
-use crate::{error::HttpStatus, request::Method, response::Response, router::Router};
+use crate::{
+    error::HttpStatus, mime::MediaType, request::Method, response::Response, router::Router,
+};
 
 #[allow(dead_code)]
 pub trait BasicRfuncs {
-    fn route_get(&mut self, path: &str, content: &str, body: &str);
-    fn route_head(&mut self, path: &str, content: &str);
+    fn route_get(&mut self, path: &str, content_type: MediaType, body: &str);
+    fn route_head(&mut self, path: &str, content_type: MediaType);
     fn route_post(&mut self, path: &str);
     fn route_put(&mut self, path: &str);
     fn route_delete(&mut self, path: &str);
     fn route_trace(&mut self, path: &str);
     fn route_options(&mut self, path: &str);
     fn route_patch(&mut self, path: &str);
-    fn route_connect(&mut self, path: &str);
 }
 
 impl BasicRfuncs for Router {
-    fn route_get(&mut self, path: &str, content: &str, body: &str) {
-        let content = content.to_string();
+    fn route_get(&mut self, path: &str, content_type: MediaType, body: &str) {
         let body = body.as_bytes().to_vec();
 
         self.route(Method::Get, path, move |req| {
             Response::new(HttpStatus::Ok, req.version.clone())
-                .header("content-type", &content)
+                .header("content-type", &content_type.to_string())
                 .body(body.clone())
         });
     }
 
-    fn route_head(&mut self, path: &str, content: &str) {
-        let content = content.to_string();
+    fn route_head(&mut self, path: &str, content_type: MediaType) {
+        let content = content_type.to_string();
 
         self.route(Method::Head, path, move |req| {
             Response::new(HttpStatus::Ok, req.version.clone()).header("content-type", &content)
@@ -36,9 +36,14 @@ impl BasicRfuncs for Router {
     fn route_post(&mut self, path: &str) {
         self.route(Method::Post, path, move |req| {
             let content = req.body.unwrap_or_default();
+            let content_t = req
+                .headers
+                .get("content-type")
+                .cloned()
+                .unwrap_or("text/plain".to_string());
 
             Response::new(HttpStatus::Ok, req.version.clone())
-                .header("content-type", "text/plain")
+                .header("content-type", &content_t)
                 .body(content)
         });
     }
@@ -84,12 +89,6 @@ impl BasicRfuncs for Router {
             Response::new(HttpStatus::Ok, req.version.clone())
                 .header("content-type", "text/plain")
                 .body(content)
-        });
-    }
-
-    fn route_connect(&mut self, path: &str) {
-        self.route(Method::Connect, path, |req| {
-            Response::new(HttpStatus::Ok, req.version.clone()).body(Vec::new())
         });
     }
 }

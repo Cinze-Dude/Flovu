@@ -8,7 +8,11 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::{error::HttpError, request::parse_request, router::Router};
+use crate::{
+    error::HttpError,
+    request::{Method, parse_request},
+    router::Router,
+};
 
 type VecInitOption = Vec<InitOption>;
 
@@ -35,7 +39,7 @@ pub enum Packet {
 pub struct Port {
     pub port: u16,
     pub opts: VecInitOption,
-    socket: Option<TcpListener>,
+    pub socket: Option<TcpListener>,
 }
 
 impl Port {
@@ -149,7 +153,18 @@ impl Port {
                 .get("connection")
                 .is_some_and(|v| v.eq_ignore_ascii_case("close"));
 
-            let response = router.handle(request);
+            let response = router.handle(&request);
+
+            if request.method == Method::Connect {
+                let mut upstream = TcpStream::connect(request.path.as_str()).await?;
+
+                client.write_all(&response.serialize()).await?;
+
+                tokio::io::copy_bidirectional(&mut client, &mut upstream).await?;
+
+                println!("Client Disconnected: {:?}", addr);
+                return Ok(());
+            }
 
             if closed {
                 println!("Client Disconnected: {:?}", addr);
