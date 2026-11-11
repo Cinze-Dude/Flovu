@@ -1,4 +1,8 @@
-use flovu::{port::Port, rfuncs::file::FileRfuncs, router::Router};
+use flovu::{
+    port::Port,
+    rfuncs::{basic::BasicRfuncs, file::FileRfuncs},
+    router::Router,
+};
 
 const PORT: u16 = 1600;
 
@@ -9,6 +13,7 @@ async fn main() -> std::io::Result<()> {
 
     router.route_html("/john", "john.html");
     router.route_html("/mark", "mark.html");
+    router.route_get("/", "text/plain", "Welcome to my website!");
 
     port.begin().await?;
 

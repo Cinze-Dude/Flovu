@@ -8,6 +8,33 @@ use crate::{
 
 type Handler = Box<dyn Fn(Request) -> Response + Send + Sync + 'static>;
 
+pub trait IntoMethod {
+    fn into_method(self) -> Method;
+}
+
+impl IntoMethod for Method {
+    fn into_method(self) -> Method {
+        self
+    }
+}
+
+impl IntoMethod for &str {
+    fn into_method(self) -> Method {
+        match self {
+            "CONNECT" => Method::Connect,
+            "DELETE" => Method::Delete,
+            "GET" => Method::Get,
+            "HEAD" => Method::Head,
+            "OPTIONS" => Method::Options,
+            "PATCH" => Method::Patch,
+            "POST" => Method::Post,
+            "PUT" => Method::Put,
+            "TRACE" => Method::Trace,
+            s => Method::Unknown(s.to_string()),
+        }
+    }
+}
+
 pub struct Router {
     routes: HashMap<(Method, String /* path */), Handler>,
 }
@@ -30,11 +57,11 @@ impl Router {
             .map_or_else(|| errr, |handler| handler(request))
     }
 
-    pub fn route<F>(&mut self, method: Method, path: &str, handler: F)
+    pub fn route<F, M: IntoMethod>(&mut self, method: M, path: &str, handler: F)
     where
         F: Fn(Request) -> Response + Send + Sync + 'static,
     {
         self.routes
-            .insert((method, path.to_string()), Box::new(handler));
+            .insert((method.into_method(), path.to_string()), Box::new(handler));
     }
 }
