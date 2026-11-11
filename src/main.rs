@@ -1,4 +1,5 @@
 use flovu::{
+    mime::MediaType,
     port::Port,
     rfuncs::{basic::BasicRfuncs, file::FileRfuncs},
     router::Router,
@@ -13,7 +14,7 @@ async fn main() -> std::io::Result<()> {
 
     router.route_html("/john", "john.html");
     router.route_html("/mark", "mark.html");
-    router.route_get("/", "text/plain", "Welcome to my website!");
+    router.route_get("/", MediaType::Plain, "Welcome to my website!");
 
     port.begin().await?;
 
