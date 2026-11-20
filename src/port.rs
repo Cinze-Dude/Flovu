@@ -177,11 +177,17 @@ impl Port {
         Ok(())
     }
 
-    pub async fn run(&self, router: Arc<Router>) -> io::Result<()> {
+    pub async fn run(
+        &self,
+        router: Arc<Router>,
+        callback: Option<fn(Result<(), HttpError>)>,
+    ) -> io::Result<()> {
         let socket = self.socket.as_ref().ok_or(io::Error::new(
             io::ErrorKind::NotConnected,
             "socket not initialized",
         ))?;
+
+        let callback = callback.map(Arc::new);
 
         let nodelay = self
             .opts
@@ -198,10 +204,13 @@ impl Port {
             println!("Client connected: {:?}", addr);
 
             let router = Arc::clone(&router);
+            let callback = callback.clone();
 
             tokio::spawn(async move {
-                if let Err(err) = Self::handle_client(client, addr, &router).await {
-                    eprintln!("Client error: {}", err);
+                let r = Self::handle_client(client, addr, &router).await;
+
+                if let Some(cb) = callback {
+                    cb(r);
                 }
             });
         }

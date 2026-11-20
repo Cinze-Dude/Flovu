@@ -20,7 +20,8 @@ async fn main() -> std::io::Result<()> {
 
     println!("Listening on port {}", PORT);
 
-    port.run(router.arc()).await?;
+    port.run(router.arc(), Some(|res| println!("{:?}", res)))
+        .await?;
 
     Ok(())
 }
